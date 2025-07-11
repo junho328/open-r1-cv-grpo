@@ -596,9 +596,9 @@ class GRPOTrainer(Trainer):
         # Initialize the metrics
         self._metrics = {"train": defaultdict(list), "eval": defaultdict(list)}
         self._total_train_tokens = 0
-        self.log_completions = True
-        self.wandb_log_unique_prompts = True
-        self.num_completions_to_print = 1
+        self.log_completions = args.log_completions
+        self.wandb_log_unique_prompts = args.wandb_log_unique_prompts
+        self.num_completions_to_print = args.num_completions_to_print
         # maxlen is set to the total number of forward passes per step. This value of `maxlen` ensures we log only the
         # final optimization step.
         maxlen = self.accelerator.num_processes * args.per_device_train_batch_size * args.steps_per_generation
