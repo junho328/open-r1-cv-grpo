@@ -1,7 +1,7 @@
 # Terminal code
 # ACCELERATE_LOG_LEVEL=info \
-#     accelerate launch --config_file recipes/accelerate_configs/zero3.yaml \
-#     src/open_r1/grpo_math.py --config cv-grpo/qwen_math500.yaml \
+#     accelerate launch --config_file src/cv_grpo/zero3.yaml \
+#     src/open_r1/grpo_math.py --config src/cv_grpo/qwen_math500.yaml \
 #     --vllm_mode colocate
 
 # Model arguments (Qwen/Qwen2.5-1.5B-Instruct / Qwen/Qwen2.5-3B-Instruct)
@@ -10,11 +10,26 @@ model_revision: main
 torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 
-# Method arguments (grpo, dr.grpo, rloo, cv.grpo)
-method: grpo 
-
 # Data training arguments
 dataset_name: HuggingFaceH4/MATH-500
+
+# Combinations of methods and loss types:
+# GRPO : grpo-grpo
+# DR.GRPO : dr_grpo-dr_grpo
+# RLOO : rloo-grpo
+# CV.GRPO : cv_grpo-grpo
+
+# Method arguments (grpo, dr_grpo, rloo, cv_grpo)
+method: grpo  
+# loss_type : grpo, bnpo, dr_grpo
+loss_type: grpo
+
+# NAME designation
+push_to_hub: true
+hub_model_id: Qwen2.5-3B-MATH500-GRPO
+output_dir: /home/ubuntu/jhna-south1/Qwen2.5-3B-MATH500-GRPO
+run_name: Qwen2.5-3B-MATH500-GRPO
+project_name: jhna
 
 # GRPO trainer config
 bf16: true
@@ -24,9 +39,8 @@ gradient_accumulation_steps: 4
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
-hub_model_id: Qwen2.5-3B-MATH500-GRPO
 hub_strategy: every_save
-learning_rate: 2.0e-05
+learning_rate: 5.0e-05
 log_completions: true
 log_level: info
 logging_first_step: true
@@ -37,25 +51,23 @@ max_prompt_length: 512
 max_completion_length: 1024
 max_steps: -1
 num_generations: 8
-num_train_epochs: 1
-output_dir: /home/ubuntu/jhna-south1/Qwen2.5-3B-MATH500-GRPO
+num_train_epochs: 5
+epsilon: 0.1
+
 overwrite_output_dir: true
 per_device_eval_batch_size: 8
 per_device_train_batch_size: 8
-push_to_hub: true
 
 reward_funcs:
 - math
+
+report_to:
+- wandb
 
 save_strategy: "epoch"
 save_total_limit: 1
 seed: 42
 warmup_ratio: 0.1
-
-report_to:
-- wandb
-run_name: Qwen2.5-3B-MATH500-GRPO
-project_name: jhna
 
 # use_lora: True
 # lora_r: 8

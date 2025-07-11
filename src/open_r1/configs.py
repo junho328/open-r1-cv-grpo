@@ -329,3 +329,11 @@ class GRPOScriptArguments(ScriptArguments):
         default=4096,
         metadata={"help": "Minimum number of characters in completion."},
     )
+    method: str = field(
+        default="grpo",
+        metadata={"help": "Method to use for training. Options: 'grpo', 'dr.grpo', 'rloo', 'cv_grpo'"},
+    )
+    project_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "Project name for wandb logging. If not provided, defaults to the script name."},
+    )
