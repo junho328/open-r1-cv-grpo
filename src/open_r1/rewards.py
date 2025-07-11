@@ -661,17 +661,17 @@ def math_reward(completions: list, solution: list[str], **kwargs) -> list[Option
         # \boxed{...} 형태
         m = re.search(r'\\boxed\{(-?\d+(?:\.\d+)?)\}', text)
         if m:
-            return m.group(1)
+            return m.group(1).strip()
 
         # "Final answer: #### 123"
         m = re.search(r'Final answer:.*?####\s*(-?\d+(?:\.\d+)?)', text, re.DOTALL)
         if m:
-            return m.group(1)
+            return m.group(1).strip()
 
         # "#### 123"
         m = re.search(r'####\s*(-?\d+(?:\.\d+)?)', text, re.DOTALL)
         if m:
-            return m.group(1)
+            return m.group(1).strip()
 
         # 마지막으로, 줄 단위로 뒤에서부터 숫자만
         for line in reversed(text.strip().splitlines()):
@@ -679,7 +679,7 @@ def math_reward(completions: list, solution: list[str], **kwargs) -> list[Option
                 continue
             m = re.search(r'(-?\d+(?:\.\d+)?)', line)
             if m:
-                return m.group(1)
+                return m.group(1).strip()
 
         return None
     

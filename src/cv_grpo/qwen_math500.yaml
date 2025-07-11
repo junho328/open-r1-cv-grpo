@@ -53,6 +53,7 @@ max_steps: -1
 num_generations: 8
 num_train_epochs: 5
 epsilon: 0.1
+warmup_ratio: 0.1
 
 overwrite_output_dir: true
 per_device_eval_batch_size: 8
@@ -67,7 +68,6 @@ report_to:
 save_strategy: "epoch"
 save_total_limit: 1
 seed: 42
-warmup_ratio: 0.1
 
 # use_lora: True
 # lora_r: 8
