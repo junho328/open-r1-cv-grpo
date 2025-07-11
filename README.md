@@ -16,6 +16,184 @@
    - [Generate data from DeepSeek-R1](#generate-data-from-deepseek-r1)  
 8. [Contributing](#contributing)
 
+## CV.GRPO Installation & Train
+
+### Installation
+
+> [!CAUTION]
+> Libraries rely on CUDA 12.4. If you see errors related to segmentation faults, double check the version your system is running with `nvcc --version`.
+
+To run the code in this project, first, create a Python virtual environment using e.g. `uv`.
+To install `uv`, follow the [UV Installation Guide](https://docs.astral.sh/uv/getting-started/installation/).
+
+
+> [!NOTE]
+> As a shortcut, run `make install` to setup development libraries (spelled out below). Afterwards, if everything is setup correctly you can try out the Open-R1 models.
+
+
+```shell
+uv venv openr1 --python 3.11 && source openr1/bin/activate && uv pip install --upgrade pip
+```
+
+> [!TIP]
+> For Hugging Face cluster users, add `export UV_LINK_MODE=copy` to your `.bashrc` to suppress cache warnings from `uv`
+
+Next, install vLLM and FlashAttention:
+
+```shell
+uv pip install vllm==0.8.5.post1
+uv pip install setuptools && uv pip install flash_attn==2.7.4.post1 --no-build-isolation
+```
+
+This will also install PyTorch `v2.6.0` and it is **very important** to use this version since the vLLM binaries are compiled for it. You can then install the remaining dependencies for your specific use case via `pip install -e .[LIST OF MODES]`. For most contributors, we recommend:
+
+```shell
+GIT_LFS_SKIP_SMUDGE=1 uv pip install -e ".[dev]"
+```
+
+Next, log into your Hugging Face and Weights and Biases accounts as follows:
+
+```shell
+huggingface-cli login
+wandb login
+```
+
+Finally, check whether your system has Git LFS installed so that you can load and push models/datasets to the Hugging Face Hub:
+
+```shell
+git-lfs --version
+```
+
+If it isn't installed, run:
+
+```shell
+sudo apt-get install git-lfs
+```
+
+### GRPO
+
+We use TRL's [vLLM backend](https://huggingface.co/docs/trl/speeding_up_training?vllm+examples=GRPO#vllm-for-fast-generation-in-online-methods) to scale training to large models across multiple nodes. For single-node training of smol models across 8 GPUs, use `vllm_mode="colocate"` to run vLLM in the same process as the training script:
+
+First, edit the yaml script file (e.g. `qwen_math500.yaml`) properly
+```shell
+# src/cv_grpo/qwen_math500.yaml 
+
+# Model arguments (Qwen/Qwen2.5-1.5B-Instruct / Qwen/Qwen2.5-3B-Instruct)
+model_name_or_path: Qwen/Qwen2.5-3B-Instruct
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: flash_attention_2
+
+# Data training arguments
+dataset_name: HuggingFaceH4/MATH-500
+
+# Combinations of methods and loss types:
+# GRPO : grpo-grpo
+# DR.GRPO : dr_grpo-dr_grpo
+# RLOO : rloo-grpo
+# CV.GRPO : cv_grpo-grpo
+
+# Method arguments (grpo, dr_grpo, rloo, cv_grpo)
+method: grpo  
+# loss_type : grpo, bnpo, dr_grpo
+loss_type: grpo
+
+# NAME designation
+push_to_hub: true
+hub_model_id: Qwen2.5-3B-MATH500-GRPO
+output_dir: /home/ubuntu/jhna-south1/Qwen2.5-3B-MATH500-GRPO
+run_name: Qwen2.5-3B-MATH500-GRPO
+project_name: jhna
+
+# GRPO trainer config
+bf16: true
+use_vllm: true
+do_eval: false
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+hub_strategy: every_save
+learning_rate: 5.0e-05
+log_completions: true
+log_level: info
+logging_first_step: true
+logging_steps: 1
+logging_strategy: steps
+lr_scheduler_type: cosine
+max_prompt_length: 512
+max_completion_length: 1024
+max_steps: -1
+num_generations: 8
+num_train_epochs: 5
+epsilon: 0.1
+
+overwrite_output_dir: true
+per_device_eval_batch_size: 8
+per_device_train_batch_size: 8
+
+reward_funcs:
+- math
+
+report_to:
+- wandb
+
+save_strategy: "epoch"
+save_total_limit: 1
+seed: 42
+warmup_ratio: 0.1
+
+# use_lora: True
+# lora_r: 8
+# lora_alpha: 16
+# lora_dropout: 0.05
+# lora_target_modules:
+# - q_proj
+# - k_proj
+# - v_proj
+# - o_proj
+```
+
+Second, edit the DeepSpeed script code properly, especially `num_proccesses=[# of GPUs]`
+
+```shell
+# src/cv_grpo/zero3.yaml
+
+compute_environment: LOCAL_MACHINE
+debug: false
+deepspeed_config:
+  deepspeed_multinode_launcher: standard
+  offload_optimizer_device: none
+  offload_param_device: none
+  zero3_init_flag: true
+  zero3_save_16bit_model: true
+  zero_stage: 3
+distributed_type: DEEPSPEED
+downcast_bf16: 'no'
+machine_rank: 0
+main_training_function: main
+mixed_precision: bf16
+num_machines: 1
+num_processes: 4
+rdzv_backend: static
+same_network: true
+tpu_env: []
+tpu_use_cluster: false
+tpu_use_sudo: false
+use_cpu: false
+```
+
+Then write down the command code in terminal like below:
+
+```shell
+# !! grpo_math.py is for math dataset (MATH500, AIME2024) training
+
+ACCELERATE_LOG_LEVEL=info \
+    accelerate launch --config_file src/cv_grpo/zero3.yaml \
+    src/open_r1/grpo_math.py --config src/cv_grpo/qwen_math500.yaml \
+    --vllm_mode colocate
+```
+
 ## Overview
 
 The goal of this repo is to build the missing pieces of the R1 pipeline such that everybody can reproduce and build on top of it. The project is simple by design and mostly consists of:
