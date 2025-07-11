@@ -140,8 +140,6 @@ def main(script_args, training_args, model_args):
 
     **Question:**
     {question}"""},
-
-            {"role": "assistant", "content": ""}
         ]
 
         return messages
@@ -153,8 +151,6 @@ def main(script_args, training_args, model_args):
             "prompt": prompt,
             "solution": example["answer"]
         }
-
-    dataset = dataset.map(format_example)
     
     dataset = DatasetDict({
         "train": split_dataset["train"].map(format_example),
@@ -162,8 +158,8 @@ def main(script_args, training_args, model_args):
     })
 
     for split in dataset:
-        if "messages" in dataset[split].column_names:
-            dataset[split] = dataset[split].remove_columns("messages")
+        if "answer" in dataset[split].column_names:
+            dataset[split] = dataset[split].remove_columns("answer")
 
     #############################
     # Initialize the GRPO trainer
