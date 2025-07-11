@@ -642,9 +642,84 @@ def get_soft_overlong_punishment(max_completion_len, soft_punish_cache):
 
     return soft_overlong_punishment_reward
 
+def math_reward(completions: list, solution: list[str], **kwargs) -> list[Optional[float]]:
+    """Reward function that checks if the completion is the same as the ground truth."""
+    
+    def extract_answer(text: str) -> Optional[str]:
+        """
+        모델이 생성한 텍스트에서 최종 숫자 답만을 추출합니다.
+        기존 MathVerifyRewardModel.extract_final_answer와 동일한 순서대로 시도합니다.
+        """
+        if text is None:
+            return None
+
+        # 프롬프트 지시문 이후부터 처리
+        idx = text.find("Now, solve the following problem:")
+        if idx != -1:
+            text = text[idx:]
+
+        # \boxed{...} 형태
+        m = re.search(r'\\boxed\{(-?\d+(?:\.\d+)?)\}', text)
+        if m:
+            return m.group(1)
+
+        # "Final answer: #### 123"
+        m = re.search(r'Final answer:.*?####\s*(-?\d+(?:\.\d+)?)', text, re.DOTALL)
+        if m:
+            return m.group(1)
+
+        # "#### 123"
+        m = re.search(r'####\s*(-?\d+(?:\.\d+)?)', text, re.DOTALL)
+        if m:
+            return m.group(1)
+
+        # 마지막으로, 줄 단위로 뒤에서부터 숫자만
+        for line in reversed(text.strip().splitlines()):
+            if re.match(r"Step\s*\d+\)", line, re.IGNORECASE):
+                continue
+            m = re.search(r'(-?\d+(?:\.\d+)?)', line)
+            if m:
+                return m.group(1)
+
+        return None
+    
+    def compare_answer(pred:str, sol:str) -> float:
+        
+        if pred is None or sol is None:
+            return 0.0
+        try:
+            return 1.0 if verify(parse(sol), parse(pred)) else 0.0
+        except Exception as e:
+            print(f"[WARN] parse or verify error: {e}")
+            return 0.0
+
+    contents: list[str] = []
+    
+    for comp in completions:
+        if isinstance(comp, str):
+            # standard mode: 이미 문자열
+            contents.append(comp)
+        elif isinstance(comp, list) and len(comp) > 0 and isinstance(comp[0], dict):
+            # conversational mode: [{"role":...,"content":...}, ...]
+            contents.append(comp[0].get("content", ""))
+        else:
+            # 그 외 (혹시 다른 형식이 들어오면 str() 으로 포매팅)
+            contents.append(str(comp))
+
+    # 2) 추출+비교 로직
+    rewards: list[Optional[float]] = []
+    for text, sol in zip(contents, solution):
+        pred = extract_answer(text)
+        if pred is None:
+            rewards.append(None)
+        else:
+            rewards.append(compare_answer(pred, sol))
+
+    return rewards
 
 def get_reward_funcs(script_args) -> list[Callable]:
     REWARD_FUNCS_REGISTRY = {
+        "math": math_reward,
         "accuracy": accuracy_reward,
         "format": format_reward,
         "reasoning_steps": reasoning_steps_reward,

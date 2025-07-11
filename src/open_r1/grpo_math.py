@@ -17,6 +17,7 @@ import os
 import sys
 
 import datasets
+from datasets import load_dataset, DatasetDict
 import transformers
 from transformers import set_seed
 from transformers.trainer_utils import get_last_checkpoint
@@ -35,6 +36,8 @@ logger = logging.getLogger(__name__)
 def main(script_args, training_args, model_args):
     # Set seed for reproducibility
     set_seed(training_args.seed)
+    
+    os.environ["WANDB_PROJECT"] = script_args.project_name
 
     ###############
     # Setup logging
@@ -71,7 +74,12 @@ def main(script_args, training_args, model_args):
         init_wandb_training(training_args)
 
     # Load the dataset
-    dataset = get_dataset(script_args)
+    # dataset = get_dataset(script_args)
+    
+    logger.info(f"Loading dataset: {script_args.dataset_name}")
+    dataset = load_dataset(script_args.dataset_name, split="test")
+    dataset = dataset.shuffle(seed=42)
+    split_dataset = dataset.train_test_split(test_size=100, seed=42)
 
     ################
     # Load tokenizer
@@ -86,21 +94,71 @@ def main(script_args, training_args, model_args):
 
     # Get reward functions from the registry
     reward_funcs = get_reward_funcs(script_args)
+    
+    def build_qwen_fewshot_messages(question:str):
 
-    # Format into conversation
-    def make_conversation(example, prompt_column: str = script_args.dataset_prompt_column):
-        prompt = []
+        system_message = f"""
+    You are a helpful assistant that solves math problems step-by-step with clear reasoning.
+    Your task:
+    1. Break down the solution into clear, logical steps.
+    2. Label each step explicitly as "Step 1)", "Step 2)", "Step 3)", etc.
+    3. Always include a "Final answer:" section.
+    4. The **final answer** must be written strictly on the line **immediately following** "Final answer:" and must start with "####".
+    5. After "####", write **only the final result** without any extra words, symbols, or punctuation.
+    6. Absolutely do not include any additional text or commentary outside these steps or in the final answer."""
 
-        if training_args.system_prompt is not None:
-            prompt.append({"role": "system", "content": training_args.system_prompt})
+        messages = [
+            {"role": "system", "content": system_message},
 
-        if prompt_column not in example:
-            raise ValueError(f"Dataset Question Field Error: {prompt_column} is not supported.")
+            {"role": "user", "content": """# Example 1
+    **Question:**
+    Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did she sell in May?"""},
+            {"role": "assistant", "content": """Step 1) Natalia sold 48 clips in April.
+    Step 2) In May, she sold half as many as in April.
+    Step 3) To find the number of clips sold in May, we divide:
+            48 ÷ 2 = 24
+    Step 4) Therefore, Natalia sold 24 clips in May.
 
-        prompt.append({"role": "user", "content": example[prompt_column]})
-        return {"prompt": prompt}
+    **Final answer:
+    ####24**"""},
 
-    dataset = dataset.map(make_conversation)
+            {"role": "user", "content": """# Example 2
+    **Question:**
+    Weng earns $12 an hour for babysitting. Yesterday, she worked for 50 minutes. How much did she earn?"""},
+            {"role": "assistant", "content": """Step 1) Weng's hourly rate is $12 per 60 minutes.
+    Step 2) To find the per-minute rate, divide:
+            12 ÷ 60 = $0.20 per minute.
+    Step 3) Weng worked for 50 minutes, so her earnings are:
+            50 × 0.20 = $10.
+    Step 4) Therefore, Weng earned $10.
+
+    **Final answer:
+    ####10**"""},
+
+            {"role": "user", "content": f"""# Now, solve the following problem:
+
+    **Question:**
+    {question}"""},
+
+            {"role": "assistant", "content": ""}
+        ]
+
+        return messages
+    
+    def format_example(example):
+        messages = build_qwen_fewshot_messages(example["problem"])
+        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        return {
+            "prompt": prompt,
+            "solution": example["answer"]
+        }
+
+    dataset = dataset.map(format_example)
+    
+    dataset = DatasetDict({
+        "train": split_dataset["train"].map(format_example),
+        "test": split_dataset["test"].map(format_example),
+    })
 
     for split in dataset:
         if "messages" in dataset[split].column_names:
@@ -113,8 +171,8 @@ def main(script_args, training_args, model_args):
         model=model,
         reward_funcs=reward_funcs,
         args=training_args,
-        train_dataset=dataset[script_args.dataset_train_split],
-        eval_dataset=(dataset[script_args.dataset_test_split] if training_args.eval_strategy != "no" else None),
+        train_dataset=dataset["train"],
+        eval_dataset=(dataset["test"] if training_args.eval_strategy != "no" else None),
         peft_config=get_peft_config(model_args),
         callbacks=get_callbacks(training_args, model_args),
         processing_class=tokenizer,
