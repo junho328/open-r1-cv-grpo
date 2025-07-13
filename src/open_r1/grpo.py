@@ -114,7 +114,23 @@ def main(script_args, training_args, model_args):
         return {"prompt": prompt}
 
     dataset = dataset.map(make_conversation)
-
+    
+    
+    logger.info("*** Filter too long dataset ***")
+    MAX_PROMPT_LEN = training_args.max_prompt_length  # 512
+    for split in dataset:
+        dataset[split] = dataset[split].filter(
+            lambda ex: len(
+                tokenizer(
+                    "".join([msg["content"] for msg in ex["prompt"]]),
+                    add_special_tokens=False,
+                )["input_ids"]
+            ) <= MAX_PROMPT_LEN
+        )
+        logger.info(
+            f"Filtered {split} split to {len(dataset[split])} samples with max prompt length {MAX_PROMPT_LEN}."
+        )
+    
     for split in dataset:
         if "messages" in dataset[split].column_names:
             dataset[split] = dataset[split].remove_columns("messages")
