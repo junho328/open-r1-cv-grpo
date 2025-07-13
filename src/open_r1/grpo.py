@@ -73,7 +73,18 @@ def main(script_args, training_args, model_args):
 
     # Load the dataset
     dataset = get_dataset(script_args)
-    dataset_small = dataset.shuffle(seed=training_args.seed).select(range(20000))
+    
+    MAX_SAMPLES=20000
+    
+    for split in dataset:
+        # evaluation을 안 하는 경우 테스트 스플릿은 None일 수 있으니 체크
+        if dataset[split] is None:
+            continue
+        dataset[split] = (
+            dataset[split]
+            .shuffle(seed=training_args.seed)
+            .select(range(min(MAX_SAMPLES, len(dataset[split]))))
+        )
 
     ################
     # Load tokenizer
