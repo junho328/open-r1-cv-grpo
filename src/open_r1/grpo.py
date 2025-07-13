@@ -112,7 +112,7 @@ def main(script_args, training_args, model_args):
     #############################
     trainer = GRPOTrainer(
         model=model,
-        method=script_args.method
+        method=script_args.method,
         reward_funcs=reward_funcs,
         args=training_args,
         train_dataset=dataset[script_args.dataset_train_split],
