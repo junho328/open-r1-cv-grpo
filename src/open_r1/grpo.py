@@ -26,7 +26,8 @@ from open_r1.rewards import get_reward_funcs
 from open_r1.utils import get_dataset, get_model, get_tokenizer
 from open_r1.utils.callbacks import get_callbacks
 from open_r1.utils.wandb_logging import init_wandb_training
-from trl import GRPOTrainer, ModelConfig, TrlParser, get_peft_config
+from trl import ModelConfig, TrlParser, get_peft_config
+from cv_grpo.cv_grpo_trainer import GRPOTrainer
 
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,7 @@ def main(script_args, training_args, model_args):
     #############################
     trainer = GRPOTrainer(
         model=model,
+        method=script_args.method
         reward_funcs=reward_funcs,
         args=training_args,
         train_dataset=dataset[script_args.dataset_train_split],
