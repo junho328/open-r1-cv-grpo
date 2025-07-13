@@ -18,6 +18,9 @@ def get_dataset(args: ScriptArguments) -> DatasetDict:
     Returns:
         DatasetDict: The loaded datasets.
     """
+    if args.dataset_name == "open-r1/OpenR1-Math-220k":
+        logger.info("Loading OpenR1-Math-220k dataset")
+        return datasets.load_dataset("open-r1/OpenR1-Math-220k", "default")
     if args.dataset_name and not args.dataset_mixture:
         logger.info(f"Loading dataset: {args.dataset_name}")
         return datasets.load_dataset(args.dataset_name, args.dataset_config)
