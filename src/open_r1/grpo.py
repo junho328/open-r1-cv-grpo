@@ -73,6 +73,7 @@ def main(script_args, training_args, model_args):
 
     # Load the dataset
     dataset = get_dataset(script_args)
+    dataset_small = dataset.shuffle(seed=training_args.seed).select(range(20000))
 
     ################
     # Load tokenizer
