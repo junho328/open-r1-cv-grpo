@@ -20,7 +20,7 @@ dataset_name: jhn9803/hendrycks-math-with-answers
 # CV.GRPO : cv_grpo-grpo
 
 # Method arguments (grpo, dr_grpo, rloo, cv_grpo)
-method: dr_grpo  
+method: dr_grpo 
 # loss_type : grpo, bnpo, dr_grpo
 loss_type: dr_grpo
 
@@ -35,7 +35,9 @@ project_name: jhna
 # GRPO trainer config
 bf16: true
 use_vllm: true
-gradient_accumulation_steps: 1
+vllm_engine_args:
+  max_model_len: 4096
+gradient_accumulation_steps: 4
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false

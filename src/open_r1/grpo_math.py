@@ -179,6 +179,21 @@ def main(script_args, training_args, model_args):
     for split in dataset:
         if "solution" in dataset[split].column_names:
             dataset[split] = dataset[split].remove_columns("solution")
+            
+    logger.info("*** Filter too long dataset ***")
+    MAX_PROMPT_LEN = training_args.max_prompt_length  # 512  
+    for split in dataset:
+        dataset[split] = dataset[split].filter(
+            lambda ex: len(
+                tokenizer(
+                    ex["prompt"],
+                    add_special_tokens=False,
+                )["input_ids"]
+            ) <= MAX_PROMPT_LEN
+        )
+        logger.info(
+            f"Filtered {split} split to {len(dataset[split])} samples with max prompt length {MAX_PROMPT_LEN}."
+        )
 
     #############################
     # Initialize the GRPO trainer
