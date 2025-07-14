@@ -642,7 +642,7 @@ def get_soft_overlong_punishment(max_completion_len, soft_punish_cache):
 
     return soft_overlong_punishment_reward
 
-def math_reward(completions: list, solution: list[str], **kwargs) -> list[Optional[float]]:
+def math_reward(completions: list, gold_answer: list[str], **kwargs) -> list[Optional[float]]:
     """Reward function that checks if the completion is the same as the ground truth."""
     
     def extract_answer(text: str) -> Optional[str]:
@@ -708,12 +708,12 @@ def math_reward(completions: list, solution: list[str], **kwargs) -> list[Option
 
     # 2) 추출+비교 로직
     rewards: list[Optional[float]] = []
-    for text, sol in zip(contents, solution):
+    for text, gold_ans in zip(contents, gold_answer):
         pred = extract_answer(text)
         if pred is None:
             rewards.append(None)
         else:
-            rewards.append(compare_answer(pred, sol))
+            rewards.append(compare_answer(pred, gold_ans))
 
     return rewards
 

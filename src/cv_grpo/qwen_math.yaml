@@ -1,0 +1,86 @@
+# Terminal code
+# ACCELERATE_LOG_LEVEL=info \
+#     accelerate launch --config_file src/cv_grpo/zero3.yaml \
+#     src/open_r1/grpo_math.py --config src/cv_grpo/qwen_math.yaml \
+#     --vllm_mode colocate
+
+# Model arguments (Qwen/Qwen2.5-1.5B-Instruct / Qwen/Qwen2.5-3B-Instruct)
+model_name_or_path: Qwen/Qwen2.5-1.5B-Instruct
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: flash_attention_2
+
+# Data training arguments
+dataset_name: jhn9803/hendrycks-math-with-answers
+
+# Combinations of methods and loss types:
+# GRPO : grpo-grpo
+# DR.GRPO : dr_grpo-dr_grpo
+# RLOO : rloo-grpo
+# CV.GRPO : cv_grpo-grpo
+
+# Method arguments (grpo, dr_grpo, rloo, cv_grpo)
+method: dr_grpo  
+# loss_type : grpo, bnpo, dr_grpo
+loss_type: dr_grpo
+
+# NAME designation
+push_to_hub: false
+hub_model_id: Qwen2.5-1.5B-MATH-DR_GRPO
+
+output_dir: /ext_hdd/jhna/cv_grpo/Qwen2.5-1.5B-MATH-DR_GRPO
+run_name: Qwen2.5-1.5B-MATH-DR_GRPO
+project_name: jhna
+
+# GRPO trainer config
+bf16: true
+use_vllm: true
+gradient_accumulation_steps: 1
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+hub_strategy: every_save
+learning_rate: 5.0e-06
+log_completions: true
+log_level: info
+logging_first_step: true
+logging_steps: 1
+logging_strategy: steps
+max_prompt_length: 512
+max_completion_length: 1024
+max_steps: -1
+num_generations: 8
+num_train_epochs: 5
+epsilon: 0.1
+beta: 0.0
+
+lr_scheduler_type: cosine
+warmup_ratio: 0.0
+
+overwrite_output_dir: true
+per_device_train_batch_size: 8
+
+do_eval: false
+eval_strategy: "no"
+per_device_eval_batch_size: 8
+
+reward_funcs:
+- math
+
+report_to:
+- wandb
+
+save_strategy: "epoch"
+save_total_limit: 1
+seed: 42
+
+# use_lora: True
+# lora_r: 8
+# lora_alpha: 16
+# lora_dropout: 0.05
+# lora_target_modules:
+# - q_proj
+# - k_proj
+# - v_proj
+# - o_proj
+

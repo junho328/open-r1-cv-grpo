@@ -15,6 +15,7 @@
 import logging
 import os
 import sys
+import re
 
 import datasets
 from datasets import load_dataset, DatasetDict
@@ -74,14 +75,10 @@ def main(script_args, training_args, model_args):
     if "wandb" in training_args.report_to:
         init_wandb_training(training_args)
 
-    # Load the dataset
-    # dataset = get_dataset(script_args)
-    
     logger.info(f"Loading dataset: {script_args.dataset_name}")
-    dataset = load_dataset(script_args.dataset_name, split="test")
+    dataset = load_dataset(script_args.dataset_name)
     dataset = dataset.shuffle(seed=42)
-    split_dataset = dataset.train_test_split(test_size=100, seed=42)
-
+    
     ################
     # Load tokenizer
     ################
@@ -147,19 +144,41 @@ def main(script_args, training_args, model_args):
     def format_example(example):
         messages = build_qwen_fewshot_messages(example["problem"])
         prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        
+        answer = example["answer"]
+        
+        patterns = [
+            r'\\boxed\{([^}]+)\}',
+            r'\\boxed\s*{\s*\\text\s*{(.*?)}}',
+            r'\$?\s*\\boxed\s*{\s*(.*?)\s*}\$?',
+            r'\$([^\$]+?)\$', 
+            r'\$([^\$]+?)', 
+            r'\\\(\s*(.*?)\s*\\\)',
+            r'\[([^\]]+)\]'
+        ]
+        
+        gold_answer = None
+        
+        for pattern in patterns:
+            match = re.search(pattern, answer)
+            if match:
+                gold_answer = match.group(1).strip()
+                break
+            
+        if gold_answer is None:
+            logger.warning(f"Could not extract gold answer from: {answer}")
+            gold_answer = answer.strip()
+        
         return {
             "prompt": prompt,
-            "solution": example["answer"]
+            "gold_answer": gold_answer
         }
     
-    dataset = DatasetDict({
-        "train": split_dataset["train"].map(format_example),
-        "test": split_dataset["test"].map(format_example),
-    })
+    dataset = dataset.map(format_example, remove_columns=dataset["train"].column_names)
 
     for split in dataset:
-        if "answer" in dataset[split].column_names:
-            dataset[split] = dataset[split].remove_columns("answer")
+        if "solution" in dataset[split].column_names:
+            dataset[split] = dataset[split].remove_columns("solution")
 
     #############################
     # Initialize the GRPO trainer
