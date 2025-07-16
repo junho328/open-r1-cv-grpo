@@ -1275,6 +1275,16 @@ class GRPOTrainer(Trainer):
             if self.scale_rewards:
                 advantages = advantages / (std_grouped_rewards + 1e-4)
 
+            adv_mean = advantages.mean().item()
+            adv_std = advantages.std(unbiased=False).item()
+            adv_var = adv_std ** 2
+            adv_snr = abs(adv_mean) / (adv_std + 1e-8)
+
+            self._metrics[mode]["advantages/mean"].append(adv_mean)
+            self._metrics[mode]["advantages/std"].append(adv_std)
+            self._metrics[mode]["advantages/var"].append(adv_var)
+            self._metrics[mode]["advantages/snr"].append(adv_snr)
+
         # Slice to keep only the local part of the data
         process_slice = slice(
             self.accelerator.process_index * len(prompts),
