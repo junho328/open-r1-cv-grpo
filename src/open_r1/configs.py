@@ -337,3 +337,9 @@ class GRPOScriptArguments(ScriptArguments):
         default=None,
         metadata={"help": "Project name for wandb logging. If not provided, defaults to the script name."},
     )
+    tau: float = field(
+        default=0.1,
+        metadata={
+            "help": "Tau value for CV-GRPO. Used to control the effect of the covariance term in the reward function."
+        },
+    )

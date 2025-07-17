@@ -490,6 +490,7 @@ class GRPOTrainer(Trainer):
         
         # Method designation
         self.method = method
+        self.tau = tau
 
         # Training arguments
         self.max_prompt_length = args.max_prompt_length
@@ -1233,7 +1234,7 @@ class GRPOTrainer(Trainer):
             rho_squared = (cov_zc ** 2) / (var_z * var_c)  # [B, 1]
 
             if self.method == "cv_grpo":
-                advantages = z - lambda_star * c  # [B, k]
+                advantages = z - tau * lambda_star * c  # [B, k]
             else:
                 advantages = z    
             

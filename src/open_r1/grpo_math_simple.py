@@ -148,6 +148,7 @@ def main(script_args, training_args, model_args):
     #############################
     trainer = GRPOTrainer(
         method=script_args.method,
+        tau=script_args.tau,
         model=model,
         reward_funcs=reward_funcs,
         args=training_args,
