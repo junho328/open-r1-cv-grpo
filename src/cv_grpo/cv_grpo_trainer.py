@@ -376,6 +376,7 @@ class GRPOTrainer(Trainer):
     def __init__(
         self,
         method: str,
+        tau: float,
         model: Union[str, PreTrainedModel],
         reward_funcs: Union[RewardFunc, list[RewardFunc]],
         args: Optional[GRPOConfig] = None,
