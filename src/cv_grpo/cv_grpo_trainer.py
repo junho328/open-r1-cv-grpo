@@ -1235,7 +1235,7 @@ class GRPOTrainer(Trainer):
             rho_squared = (cov_zc ** 2) / (var_z * var_c)  # [B, 1]
 
             if self.method == "cv_grpo":
-                advantages = z - tau * lambda_star * c  # [B, k]
+                advantages = z - self.tau * lambda_star * c  # [B, k]
             else:
                 advantages = z    
             
