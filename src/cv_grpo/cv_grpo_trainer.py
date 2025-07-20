@@ -1405,6 +1405,16 @@ class GRPOTrainer(Trainer):
 
         per_token_logps = self._get_per_token_logps(model, input_ids, attention_mask, logits_to_keep)
 
+        if self.loss_type == "reinforce":
+            # per-token loss: -(log p) * A 를 각 토큰마다 계산
+            per_token_loss = -per_token_logps * advantages.unsqueeze(1)
+            # 시퀀스별 토큰 개수로 정규화 후 배치평균
+            loss = (
+                (per_token_loss * completion_mask).sum(-1)  # 시퀀스별 sum(logps * A)
+                / completion_mask.sum(-1).clamp(min=1.0)    # 시퀀스별 토큰 수
+            ).mean()
+            return loss
+
         # Compute the KL divergence between the model and the reference model
         if self.beta != 0.0:
             with torch.no_grad():
@@ -1422,7 +1432,6 @@ class GRPOTrainer(Trainer):
             )
 
         # Compute the loss
-        advantages = inputs["advantages"]
         # When using num_iterations == 1 and steps_per_generation <= gradient_accumulation_steps
         # old_per_token_logps == per_token_logps, so we can skip it's computation
         # (see _generate_and_score_completions) and use per_token_logps.detach() instead.
