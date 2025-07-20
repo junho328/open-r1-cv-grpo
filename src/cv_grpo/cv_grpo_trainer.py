@@ -1404,16 +1404,23 @@ class GRPOTrainer(Trainer):
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
 
         per_token_logps = self._get_per_token_logps(model, input_ids, attention_mask, logits_to_keep)
+        advantages = inputs["advantages"]
 
         if self.loss_type == "reinforce":
-            # per-token loss: -(log p) * A 를 각 토큰마다 계산
-            per_token_loss = -per_token_logps * advantages.unsqueeze(1)
-            # 시퀀스별 토큰 개수로 정규화 후 배치평균
-            loss = (
-                (per_token_loss * completion_mask).sum(-1)  # 시퀀스별 sum(logps * A)
-                / completion_mask.sum(-1).clamp(min=1.0)    # 시퀀스별 토큰 수
-            ).mean()
+
+            seq_logps = (per_token_logps * completion_mask).sum(dim=1)
+            loss = - (advantages * seq_logps).mean()
+
             return loss
+            
+            # # per-token loss: -(log p) * A 를 각 토큰마다 계산
+            # per_token_loss = -per_token_logps * advantages.unsqueeze(1)
+            # # 시퀀스별 토큰 개수로 정규화 후 배치평균
+            # loss = (
+            #     (per_token_loss * completion_mask).sum(-1)  # 시퀀스별 sum(logps * A)
+            #     / completion_mask.sum(-1).clamp(min=1.0)    # 시퀀스별 토큰 수
+            # ).mean()
+            # return loss
 
         # Compute the KL divergence between the model and the reference model
         if self.beta != 0.0:
