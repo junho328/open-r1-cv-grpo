@@ -76,7 +76,8 @@ save_strategy: "epoch"
 save_total_limit: 1
 seed: 42
 
-# use_lora: True
+# use_peft: true
+# peft_type: lora
 # lora_r: 8
 # lora_alpha: 16
 # lora_dropout: 0.05
