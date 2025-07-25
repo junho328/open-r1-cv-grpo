@@ -33,10 +33,10 @@ for TASK in "${TASKS[@]}"; do
 
   if [ "$TASK" = "amc23" ]; then
     PREFIX="community"
-    CUSTOM_TASKS="--custom_tasks /home/ubuntu/open-r1-cv-grpo/amc23_evals.py"
+    CUSTOM_TASKS="--custom-tasks /home/ubuntu/open-r1-cv-grpo/amc23_evals.py"
   elif [ "$TASK" = "minervamath" ]; then
     PREFIX="community"
-    CUSTOM_TASKS="--custom_tasks /home/ubuntu/open-r1-cv-grpo/minervamath_evals.py"
+    CUSTOM_TASKS="--custom-tasks /home/ubuntu/open-r1-cv-grpo/minervamath_evals.py"
   else
     PREFIX="lighteval"
     CUSTOM_TASKS=""
