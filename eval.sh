@@ -1,11 +1,12 @@
 #!/bin/bash
 
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
-export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
+export VLLM_ALLOW_LONG_MAX_MODEL_LEN=0
+export CUDA_VISIBLE_DEVICES=0
 
-MODEL_PATH="/home/ubuntu/jhna-east1/cv_grpo/Qwen2.5-MATH-7B-MATH345-GRPO-EP20-LR2e06/checkpoint-522"
+MODEL_PATH=""
 
-OUTPUT_DIR="/ext_hdd/jhna/cv_grpo/evals/Qwen2.5-MATH-7B-MATH345-GRPO-EP20-LR2e06/checkpoint-522"
+OUTPUT_DIR=""
 
 DTYPE="bfloat16"  
 MAX_LEN=32768
@@ -21,11 +22,28 @@ TASKS=(
   "math_500"
   "agieval:sat-math"
   "aime24"
+  "aime25"
+  "amc23"
+  "minervamath"
 )
+
 
 for TASK in "${TASKS[@]}"; do
   echo "Running task: $TASK"
-  lighteval vllm $MODEL_ARGS "lighteval|$TASK|0|0" \
+
+  if [ "$TASK" = "amc23" ]; then
+    PREFIX="community"
+    CUSTOM_TASKS="--custom_tasks /home/ubuntu/open-r1-cv-grpo/amc23_evals.py"
+  elif [ "$TASK" = "minervamath" ]; then
+    PREFIX="community"
+    CUSTOM_TASKS="--custom_tasks /home/ubuntu/open-r1-cv-grpo/minervamath_evals.py"
+  else
+    PREFIX="lighteval"
+    CUSTOM_TASKS=""
+  fi
+
+  lighteval vllm $MODEL_ARGS "${PREFIX}|${TASK}|0|0" \
     --use-chat-template \
-    --output-dir "$OUTPUT_DIR"
+    --output-dir "$OUTPUT_DIR" \
+    $CUSTOM_TASKS
 done
