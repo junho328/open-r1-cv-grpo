@@ -1,12 +1,12 @@
 #!/bin/bash
 
 export VLLM_WORKER_MULTIPROC_METHOD=spawn
-export VLLM_ALLOW_LONG_MAX_MODEL_LEN=0
+export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
 export CUDA_VISIBLE_DEVICES=0
 
-MODEL_PATH=""
+MODEL_PATH="/ext_hdd/jhna/cv_grpo/DeepSeek-R1-Distill-Qwen-1.5B-MATH345-VLOO-EP5-LR1e06/checkpoint-522"
 
-OUTPUT_DIR=""
+OUTPUT_DIR="/ext_hdd/jhna/cv_grpo/evals/DeepSeek-R1-Distill-Qwen-1.5B-MATH345-VLOO-EP5-LR1e06/checkpoint-522"
 
 DTYPE="bfloat16"  
 MAX_LEN=32768
