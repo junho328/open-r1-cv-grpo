@@ -78,6 +78,7 @@ def main(script_args, training_args, model_args):
 
     logger.info(f"Loading dataset: {script_args.dataset_name}")
     dataset = load_dataset(script_args.dataset_name)
+    dataset = dataset.filter(lambda x: x["level"] in ("Level 3", "Level 4", "Level 5"))
     dataset = dataset.shuffle(seed=42)
     
     ################
