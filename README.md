@@ -196,7 +196,7 @@ Then write down the command code in terminal like below:
 
 ACCELERATE_LOG_LEVEL=info \
     accelerate launch --config_file src/cv_grpo/zero3.yaml \
-    src/open_r1/grpo_math.py --config src/cv_grpo/qwen_math500.yaml \
+    src/open_r1/grpo_math.py --config src/cv_grpo/qwen_math.yaml \
     --vllm_mode colocate
 ```
 
