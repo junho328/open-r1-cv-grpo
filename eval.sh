@@ -20,11 +20,13 @@ MODEL_ARGS="model_name=$MODEL_PATH,dtype=$DTYPE,max_model_length=$MAX_LEN,gpu_me
 TASKS=(
   "gsm8k"
   "math_500"
-  "agieval:sat-math"
+  "collegemath"
   "aime24"
   "aime25"
   "amc23"
   "minervamath"
+  "mmlu"
+  "gpqa"
 )
 
 
@@ -33,10 +35,13 @@ for TASK in "${TASKS[@]}"; do
 
   if [ "$TASK" = "amc23" ]; then
     PREFIX="community"
-    CUSTOM_TASKS="--custom-tasks /home/ubuntu/open-r1-cv-grpo/amc23_evals.py"
+    CUSTOM_TASKS="--custom-tasks /{PATH}/open-r1-cv-grpo/amc23_evals.py"
   elif [ "$TASK" = "minervamath" ]; then
     PREFIX="community"
-    CUSTOM_TASKS="--custom-tasks /home/ubuntu/open-r1-cv-grpo/minervamath_evals.py"
+    CUSTOM_TASKS="--custom-tasks /{PATH}/open-r1-cv-grpo/minervamath_evals.py"
+  elif [ "$TASK" = "collegemath" ]; then
+    PREFIX="community"
+    CUSTOM_TASKS="--custom-tasks /{PATH}/open-r1-cv-grpo/collegemath_evals.py"
   else
     PREFIX="lighteval"
     CUSTOM_TASKS=""
