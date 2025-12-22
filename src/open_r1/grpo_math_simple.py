@@ -29,7 +29,6 @@ from open_r1.utils import get_model, get_tokenizer
 from open_r1.utils.callbacks import get_callbacks
 from open_r1.utils.wandb_logging import init_wandb_training
 from trl import ModelConfig, TrlParser, get_peft_config
-from cv_grpo.cv_grpo_trainer import GRPOTrainer
 from open_r1.math_grader import extract_boxed_answer
 
 
@@ -147,18 +146,37 @@ def main(script_args, training_args, model_args):
     #############################
     # Initialize the GRPO trainer
     #############################
-    trainer = GRPOTrainer(
-        method=script_args.method,
-        tau=script_args.tau,
-        model=model,
-        reward_funcs=reward_funcs,
-        args=training_args,
-        train_dataset=dataset["train"],
-        eval_dataset=(dataset["test"] if training_args.eval_strategy != "no" else None),
-        peft_config=get_peft_config(model_args),
-        callbacks=get_callbacks(training_args, model_args),
-        processing_class=tokenizer,
-    )
+    
+    if training_args.loss_type == "dapo":
+        
+        from cv_grpo.dapo_grpo_trainer import GRPOTrainer
+        
+        trainer = GRPOTrainer(         model=model,
+            reward_funcs=reward_funcs,
+            args=training_args,
+            train_dataset=dataset["train"],
+            eval_dataset=(dataset["test"] if training_args.eval_strategy != "no" else None),
+            peft_config=get_peft_config(model_args),
+            callbacks=get_callbacks(training_args, model_args),
+            processing_class=tokenizer,
+        )
+
+    else:
+        
+        from cv_grpo.cv_grpo_trainer import GRPOTrainer
+    
+        trainer = GRPOTrainer(
+            method=script_args.method,
+            tau=script_args.tau,
+            model=model,
+            reward_funcs=reward_funcs,
+            args=training_args,
+            train_dataset=dataset["train"],
+            eval_dataset=(dataset["test"] if training_args.eval_strategy != "no" else None),
+            peft_config=get_peft_config(model_args),
+            callbacks=get_callbacks(training_args, model_args),
+            processing_class=tokenizer,
+        )
 
     ###############
     # Training loop
