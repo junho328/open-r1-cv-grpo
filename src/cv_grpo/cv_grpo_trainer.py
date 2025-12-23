@@ -214,11 +214,17 @@ def split_tensor_dict(
             {"x": tensor([[ 8,  9], [10, 11]]), "y": tensor([[4], [5]])}
         ]
     """
-    first_tensor = next(tensor for tensor in tensor_dict.values() if tensor is not None)
+    # Find a batched tensor to infer the split dimension from.
+    # Some entries (e.g. num_items_in_batch for DAPO) can be scalars and should be carried through unchanged.
+    first_tensor = next(tensor for tensor in tensor_dict.values() if isinstance(tensor, torch.Tensor))
     chunk_size = first_tensor.shape[0] // num_chunks
     return [
         {
-            key: tensor[i * chunk_size : (i + 1) * chunk_size] if tensor is not None else None
+            key: (
+                tensor[i * chunk_size : (i + 1) * chunk_size]
+                if isinstance(tensor, torch.Tensor)
+                else tensor
+            )
             for key, tensor in tensor_dict.items()
         }
         for i in range(num_chunks)
@@ -241,10 +247,18 @@ def shuffle_tensor_dict(tensor_dict: dict[str, Optional[torch.Tensor]]) -> dict[
                       [0],
                       [2]])}
     """
-    first_tensor = next(tensor for tensor in tensor_dict.values() if tensor is not None)
+    # Find a batched tensor to infer the permutation size from.
+    # Some entries (e.g. num_items_in_batch for DAPO) can be scalars and should be carried through unchanged.
+    first_tensor = next(tensor for tensor in tensor_dict.values() if isinstance(tensor, torch.Tensor))
     batch_size = first_tensor.shape[0]
     permutation = torch.randperm(batch_size)
-    return {key: tensor[permutation] if tensor is not None else None for key, tensor in tensor_dict.items()}
+    out: dict[str, Optional[torch.Tensor]] = {}
+    for key, tensor in tensor_dict.items():
+        if isinstance(tensor, torch.Tensor):
+            out[key] = tensor[permutation]
+        else:
+            out[key] = tensor
+    return out
 
 
 def nanmin(tensor: torch.Tensor) -> torch.Tensor:
@@ -649,6 +663,18 @@ class GRPOTrainer(Trainer):
                             for i in range(self.accelerator.num_processes // self.vllm_tensor_parallel_size)
                         ]
                     )
+
+                # Ensure RANK and related env vars are set for vLLM's external_launcher backend
+                if "RANK" not in os.environ:
+                    os.environ["RANK"] = str(self.accelerator.process_index)
+                if "WORLD_SIZE" not in os.environ:
+                    os.environ["WORLD_SIZE"] = str(self.accelerator.num_processes)
+                if "LOCAL_RANK" not in os.environ:
+                    os.environ["LOCAL_RANK"] = str(self.accelerator.local_process_index)
+                if "MASTER_ADDR" not in os.environ:
+                    os.environ["MASTER_ADDR"] = "127.0.0.1"
+                if "MASTER_PORT" not in os.environ:
+                    os.environ["MASTER_PORT"] = "29500"
 
                 self.llm = LLM(
                     model=model.name_or_path,
@@ -1327,6 +1353,11 @@ class GRPOTrainer(Trainer):
             self._textual_logs["rewards"][name].extend(rewards_per_func[:, i].tolist())
         self._textual_logs["advantages"].extend(all_process_advantages.tolist())
 
+        # Total completion tokens across all processes.
+        # DAPO loss uses this as denominator (num_items_in_batch).
+        completion_lengths_for_norm = completion_mask.sum(dim=1)
+        total_completion_tokens = self.accelerator.gather(completion_lengths_for_norm).sum().item()
+
         return {
             "prompt_ids": prompt_ids,
             "prompt_mask": prompt_mask,
@@ -1334,6 +1365,7 @@ class GRPOTrainer(Trainer):
             "completion_mask": completion_mask,
             "advantages": advantages,
             "old_per_token_logps": old_per_token_logps,
+            "num_items_in_batch": total_completion_tokens,
             # "ref_per_token_logps": ref_per_token_logps,
         }
 
@@ -1386,6 +1418,22 @@ class GRPOTrainer(Trainer):
 
     @profiling_decorator
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        # NOTE:
+        # HF Trainer may pass num_items_in_batch=None depending on version/dataloader.
+        # For DAPO, we compute num_items_in_batch (total completion tokens) during rollout generation and attach it to
+        # `inputs`. Do not clobber it with None.
+        if num_items_in_batch is not None:
+            inputs["num_items_in_batch"] = num_items_in_batch
+        elif self.loss_type == "dapo" and inputs.get("num_items_in_batch") is None:
+            # Fallback: compute from completion_mask if caller didn't supply it.
+            completion_mask = inputs.get("completion_mask")
+            if completion_mask is not None:
+                completion_lengths = completion_mask.sum(dim=1)
+                try:
+                    total_completion_tokens = self.accelerator.gather(completion_lengths).sum()
+                except Exception:
+                    total_completion_tokens = completion_lengths.sum()
+                inputs["num_items_in_batch"] = total_completion_tokens.item()
         if return_outputs:
             raise ValueError("The GRPOTrainer does not support returning outputs")
         if self.use_liger_loss:
@@ -1464,6 +1512,9 @@ class GRPOTrainer(Trainer):
             loss = (per_token_loss * completion_mask).sum() / completion_mask.sum().clamp(min=1.0)
         elif self.loss_type == "dr_grpo":
             loss = (per_token_loss * completion_mask).sum() / (per_token_loss.size(0) * self.max_completion_length)
+        elif self.loss_type == "dapo":
+            normalizer = inputs["num_items_in_batch"] / self.accelerator.num_processes
+            loss = (per_token_loss * completion_mask).sum() / normalizer
         else:
             raise ValueError(f"Unknown loss type: {self.loss_type}")
 
@@ -1497,7 +1548,7 @@ class GRPOTrainer(Trainer):
         inputs = self._prepare_inputs(inputs)
         with torch.no_grad():
             with self.compute_loss_context_manager():
-                loss = self.compute_loss(model, inputs)
+                loss = self.compute_loss(model, inputs, num_items_in_batch=inputs["num_items_in_batch"])
             loss = loss.mean().detach()
         return loss, None, None
 
